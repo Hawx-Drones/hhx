@@ -1,0 +1,80 @@
+# GoLand IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# Go binary files
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build specific
+*.o
+*.a
+
+# Go test binary, built with `go test -c`
+*.test
+
+# Test coverage output
+*.out
+coverage.txt
+
+# Go workspace file
+go.work
+
+# Dependency directories
+/vendor/
+
+# Debug files
+__debug_bin
+debug
+debug.test
+
+# Project-local glide cache
+.glide/
+
+# Go mod vendor directory
+vendor/
+
+# Build output directory
+/build/
+/dist/
+
+# macOS specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux specific files
+*~
+.directory
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Log files
+*.log
+logs/
+
+# Temporary configuration files
+.tmp/
+tmp/
+temp/
+
+# Release artifacts
+*.tar.gz
+*.zip
