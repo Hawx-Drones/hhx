@@ -12,6 +12,7 @@
 *.dll
 *.so
 *.dylib
+hhx
 
 # Go build specific
 *.o
