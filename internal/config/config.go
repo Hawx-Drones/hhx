@@ -22,11 +22,50 @@ type Config struct {
 	DefaultRepoPath string `json:"default_repo_path,omitempty"`
 }
 
+// GetGlobalConfigDir returns the path to the global configuration directory
+func GetGlobalConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".hhx"), nil
+}
+
+// GetGlobalConfigPath returns the path to the global configuration file
+func GetGlobalConfigPath() (string, error) {
+	configDir, err := GetGlobalConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "config.json"), nil
+}
+
+// LoadGlobalConfig loads the global configuration
+func LoadGlobalConfig() (*Config, error) {
+	path, err := GetGlobalConfigPath()
+	if err != nil {
+		return nil, err
+	}
+
+	return Load(path)
+}
+
+// SaveGlobalConfig saves the global configuration
+func SaveGlobalConfig(cfg *Config) error {
+	path, err := GetGlobalConfigPath()
+	if err != nil {
+		return err
+	}
+
+	return cfg.Save(path)
+}
+
 // Load loads the configuration from the given file path
 func Load(path string) (*Config, error) {
 	// If config file doesn't exist, return default config
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return &Config{
+			// TODO: Move this to api server
 			ServerURL: "http://localhost:8080", // Default local server URL
 		}, nil
 	}
