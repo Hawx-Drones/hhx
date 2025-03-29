@@ -39,7 +39,8 @@ func (c *Client) GetUserDetails() (*models.UserDetailsWithSubscription, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch user details with status %d: %s", resp.StatusCode, string(bodyBytes))
+		responseBody := string(bodyBytes)
+		return nil, fmt.Errorf("failed to fetch user details with status %d: %s", resp.StatusCode, responseBody)
 	}
 
 	var response struct {
@@ -60,7 +61,7 @@ func (c *Client) UpdateAccount(req *models.UserDetails) (*models.UserDetails, er
 		return nil, fmt.Errorf("error getting token: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/%s/auth/me", c.BaseURL, API_VERSION)
+	url := fmt.Sprintf("%s/%s/account/update", c.BaseURL, API_VERSION)
 
 	jsonData, err := json.Marshal(req)
 	if err != nil {
