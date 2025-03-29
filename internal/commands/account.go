@@ -79,8 +79,21 @@ var accountCreateCmd = &cobra.Command{
 			return nil
 		}
 
+		name := ""
+		fmt.Print("Name (optional): ")
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			name = scanner.Text()
+		}
+
+		phone := ""
+		fmt.Print("Phone (optional): ")
+		if scanner.Scan() {
+			phone = scanner.Text()
+		}
+
 		client := api.NewClient(serverURL, tokenStore)
-		authResult, err := client.Register(email, password)
+		authResult, err := client.Register(email, password, name, phone)
 		if err != nil {
 			fmt.Println("Account creation failed:", err)
 			return nil
