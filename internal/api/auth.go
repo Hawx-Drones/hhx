@@ -29,7 +29,18 @@ func (c *Client) Register(email string, password string, name string, phone stri
 		return nil, fmt.Errorf("error marshalling request: %w", err)
 	}
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	client, err := createHTTPClientWithCookieJar()
+	if err != nil {
+		return nil, fmt.Errorf("error creating HTTP client: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %w", err)
 	}
@@ -45,28 +56,33 @@ func (c *Client) Register(email string, password string, name string, phone stri
 		return nil, fmt.Errorf("registration failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	var response struct {
-		Message string `json:"message"`
-		User    struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
-		} `json:"user"`
-		Token string `json:"token"`
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("error decoding response: %w", err)
+	var responseMap map[string]interface{}
+	if err := json.Unmarshal(responseBody, &responseMap); err != nil {
+		return nil, fmt.Errorf("error parsing response JSON: %w", err)
 	}
 
-	if err := c.tokenStore.SaveToken(response.Token); err != nil {
-		return nil, fmt.Errorf("error saving token: %w", err)
+	authResponse := &models.Auth{}
+	authResponse.UserID, authResponse.Email = extractUserInfo(responseMap)
+	authResponse.Token = findAuthToken(resp.Cookies(), responseMap)
+
+	if authResponse.Token == "" {
+		return nil, fmt.Errorf("no authentication token found in server response")
 	}
 
-	return &models.Auth{
-		Token:  response.Token,
-		UserID: response.User.ID,
-		Email:  response.User.Email,
-	}, nil
+	c.AuthToken = authResponse.Token
+
+	if c.tokenStore != nil {
+		if err := c.tokenStore.SaveToken(authResponse.Token); err != nil {
+			return nil, fmt.Errorf("error saving token: %w", err)
+		}
+	}
+
+	return authResponse, nil
 }
 
 // Login authenticates the user with the server
