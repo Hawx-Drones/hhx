@@ -12,6 +12,60 @@ import (
 	"time"
 )
 
+// Register creates a new user account and returns authentication information
+func (c *Client) Register(email, password string) (*models.Auth, error) {
+	url := fmt.Sprintf("%s/%s/auth/signup", c.BaseURL, API_VERSION)
+
+	requestBody := map[string]string{
+		"email":    email,
+		"password": password,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling request: %w", err)
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("registration failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Message string `json:"message"`
+		User    struct {
+			ID    string `json:"id"`
+			Email string `json:"email"`
+		} `json:"user"`
+		Token string `json:"token"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	if err := c.tokenStore.SaveToken(response.Token); err != nil {
+		return nil, fmt.Errorf("error saving token: %w", err)
+	}
+
+	return &models.Auth{
+		Token:  response.Token,
+		UserID: response.User.ID,
+		Email:  response.User.Email,
+	}, nil
+}
+
 // Login authenticates the user with the server
 func (c *Client) Login(email, password string) (*models.Auth, error) {
 	reqBody, err := json.Marshal(map[string]string{
