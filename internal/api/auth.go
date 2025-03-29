@@ -22,7 +22,7 @@ func (c *Client) Login(email, password string) (*models.Auth, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/auth/signin", c.BaseURL), bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/auth/signin", c.BaseURL, API_VERSION), bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -76,10 +76,40 @@ func (c *Client) Login(email, password string) (*models.Auth, error) {
 	return authResponse, nil
 }
 
-// Logout clears the authentication token
+// Logout clears the authentication token and notifies the server
 func (c *Client) Logout() error {
-	c.AuthToken = ""
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/auth/signout", c.BaseURL, API_VERSION), nil)
+	if err != nil {
+		return fmt.Errorf("error creating logout request: %w", err)
+	}
 
+	if c.AuthToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.AuthToken)
+	}
+
+	client, err := createHTTPClientWithCookieJar()
+	if err != nil {
+		return fmt.Errorf("error creating HTTP client: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error calling signout endpoint: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
+
+	// If the server returns a non-200 status code, log the error but continue with local logout
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("Warning: Server signout returned status %d: %s\n", resp.StatusCode, string(body))
+	}
+
+	c.AuthToken = ""
 	if c.tokenStore != nil {
 		return c.tokenStore.ClearToken()
 	}
