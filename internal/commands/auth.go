@@ -18,32 +18,41 @@ var loginCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		globalConfigDir, err := config.GetGlobalConfigDir()
 		if err != nil {
-			return err
+			fmt.Println("error getting global config directory:", err)
+			return nil
 		}
 
 		if err := os.MkdirAll(globalConfigDir, 0755); err != nil {
-			return fmt.Errorf("error creating global config directory: %w", err)
+			fmt.Println("error creating global config directory:", err)
+			return nil
 		}
 
 		globalConfig, err := config.LoadGlobalConfig()
 		if err != nil {
-			return fmt.Errorf("error loading global config: %w", err)
+			fmt.Println("error loading global config:", err)
+			return nil
 		}
 
 		tokenStore := models.NewTokenStore(globalConfigDir)
 		serverURL := globalConfig.ServerURL
 		if serverURL == "" {
-			return fmt.Errorf("server URL not configured")
+			fmt.Println("Error: server URL not configured")
+			return nil
 		}
 
 		var email string
 		fmt.Print("Email: ")
-		fmt.Scanln(&email)
+		_, err = fmt.Scanln(&email)
+		if err != nil {
+			fmt.Println("error reading email:", err)
+			return nil
+		}
 
 		fmt.Print("Password: ")
 		passwordBytes, err := term.ReadPassword(uintptr(syscall.Stdin))
 		if err != nil {
-			return fmt.Errorf("error reading password: %w", err)
+			fmt.Println("error reading password:", err)
+			return nil
 		}
 		fmt.Println() // Add a newline after password input
 
@@ -51,7 +60,8 @@ var loginCmd = &cobra.Command{
 		client := api.NewClient(serverURL, tokenStore)
 		authResult, err := client.Login(email, password)
 		if err != nil {
-			return fmt.Errorf("login failed: %w", err)
+			fmt.Println("login failed:", err)
+			return nil
 		}
 
 		globalConfig.AuthToken = authResult.Token
@@ -59,7 +69,8 @@ var loginCmd = &cobra.Command{
 		globalConfig.Email = authResult.Email
 
 		if err := config.SaveGlobalConfig(globalConfig); err != nil {
-			return fmt.Errorf("error saving global config: %w", err)
+			fmt.Println("error saving global config:", err)
+			return nil
 		}
 
 		fmt.Printf("Successfully logged in as %s\n", email)
@@ -74,18 +85,21 @@ var logoutCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		globalConfigDir, err := config.GetGlobalConfigDir()
 		if err != nil {
-			return err
+			fmt.Println("error getting global config directory:", err)
+			return nil
 		}
 
 		globalConfig, err := config.LoadGlobalConfig()
 		if err != nil {
-			return fmt.Errorf("error loading global config: %w", err)
+			fmt.Println("error loading global config:", err)
+			return nil
 		}
 
 		tokenStore := models.NewTokenStore(globalConfigDir)
 		client := api.NewClient(globalConfig.ServerURL, tokenStore)
 		if err := client.Logout(); err != nil {
-			return fmt.Errorf("error during logout: %w", err)
+			fmt.Println("error during logout:", err)
+			return nil
 		}
 
 		globalConfig.AuthToken = ""
@@ -93,7 +107,8 @@ var logoutCmd = &cobra.Command{
 		globalConfig.Email = ""
 
 		if err := config.SaveGlobalConfig(globalConfig); err != nil {
-			return fmt.Errorf("error saving global config: %w", err)
+			fmt.Println("error saving global config:", err)
+			return nil
 		}
 
 		fmt.Println("Successfully logged out")
@@ -108,7 +123,8 @@ var whoamiCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		globalConfigDir, err := config.GetGlobalConfigDir()
 		if err != nil {
-			return err
+			fmt.Println("error getting global config directory:", err)
+			return nil
 		}
 
 		if _, err := os.Stat(globalConfigDir); os.IsNotExist(err) {
@@ -118,7 +134,8 @@ var whoamiCmd = &cobra.Command{
 
 		globalConfig, err := config.LoadGlobalConfig()
 		if err != nil {
-			return fmt.Errorf("error loading global config: %w", err)
+			fmt.Println("error loading global config:", err)
+			return nil
 		}
 
 		tokenStore := models.NewTokenStore(globalConfigDir)

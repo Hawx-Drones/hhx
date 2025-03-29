@@ -18,18 +18,21 @@ var initCmd = &cobra.Command{
 		// Get current directory
 		cwd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("error getting current directory: %w", err)
+			fmt.Println("error getting current directory:", err)
+			return nil
 		}
 
 		// Check if .hhx directory already exists
 		hhxDir := filepath.Join(cwd, ".hhx")
 		if _, err := os.Stat(hhxDir); err == nil {
-			return fmt.Errorf("repository already initialized")
+			fmt.Println("Error: repository already initialized")
+			return nil
 		}
 
 		// Create .hhx directory
 		if err := os.MkdirAll(hhxDir, 0755); err != nil {
-			return fmt.Errorf("error creating .hhx directory: %w", err)
+			fmt.Println("error creating .hhx directory:", err)
+			return nil
 		}
 
 		// Create index file
@@ -45,12 +48,14 @@ var initCmd = &cobra.Command{
 
 		// Add the default collection to the index
 		if err := index.AddCollection(defaultCollection); err != nil {
-			return fmt.Errorf("error creating default collection: %w", err)
+			fmt.Println("error creating default collection:", err)
+			return nil
 		}
 
 		// Save the index
 		if err := index.Save(indexPath); err != nil {
-			return fmt.Errorf("error creating index file: %w", err)
+			fmt.Println("error creating index file:", err)
+			return nil
 		}
 
 		// Create repository config
@@ -66,11 +71,16 @@ var initCmd = &cobra.Command{
 		repoConfigPath := filepath.Join(hhxDir, "config.json")
 		fmt.Printf("repoConfigPath: %v\n", repoConfigPath)
 		if err := config.SaveRepoConfig(repoConfig); err != nil {
-			return fmt.Errorf("error creating repository config: %w", err)
+			fmt.Println("error creating repository config:", err)
+			return nil
 		}
 
 		fmt.Println("Initialized empty hhx repository in", hhxDir)
 		fmt.Println("Created default collection for storing files")
 		return nil
 	},
+}
+
+func init() {
+	rootCmd.AddCommand(initCmd)
 }

@@ -28,19 +28,22 @@ var collectionListCmd = &cobra.Command{
 		// Find repository root
 		_, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Get all collections
@@ -110,7 +113,8 @@ var collectionCreateCmd = &cobra.Command{
 
 		// Validate collection type
 		if collType != "bucket" && collType != "table" {
-			return fmt.Errorf("invalid collection type: %s (must be 'bucket' or 'table')", collType)
+			fmt.Println("Error: invalid collection type:", collType, "(must be 'bucket' or 'table')")
+			return nil
 		}
 
 		// If path is not specified, use name
@@ -135,11 +139,13 @@ var collectionCreateCmd = &cobra.Command{
 			if schemaFile != "" {
 				data, err := os.ReadFile(schemaFile)
 				if err != nil {
-					return fmt.Errorf("error reading schema file: %w", err)
+					fmt.Println("error reading schema file:", err)
+					return nil
 				}
 
 				if err := json.Unmarshal(data, schema); err != nil {
-					return fmt.Errorf("error parsing schema file: %w", err)
+					fmt.Println("error parsing schema file:", err)
+					return nil
 				}
 			} else if columns != "" {
 				// Parse columns format: "name:type[:pk][:null],name2:type2[:pk][:null]"
@@ -147,7 +153,8 @@ var collectionCreateCmd = &cobra.Command{
 				for _, colDef := range columnDefs {
 					parts := strings.Split(colDef, ":")
 					if len(parts) < 2 {
-						return fmt.Errorf("invalid column definition: %s", colDef)
+						fmt.Println("Error: invalid column definition:", colDef)
+						return nil
 					}
 
 					col := &models.Column{
@@ -163,14 +170,16 @@ var collectionCreateCmd = &cobra.Command{
 						case "null":
 							col.Nullable = true
 						default:
-							return fmt.Errorf("unknown column attribute: %s", parts[i])
+							fmt.Println("Error: unknown column attribute:", parts[i])
+							return nil
 						}
 					}
 
 					schema.Columns = append(schema.Columns, col)
 				}
 			} else {
-				return fmt.Errorf("schema is required for table collections. Use --schema-file or --columns")
+				fmt.Println("Error: schema is required for table collections. Use --schema-file or --columns")
+				return nil
 			}
 
 			collection.Schema = schema
@@ -179,36 +188,42 @@ var collectionCreateCmd = &cobra.Command{
 		// Find repository root
 		_, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Add collection
 		if err := index.AddCollection(collection); err != nil {
-			return fmt.Errorf("error creating collection: %w", err)
+			fmt.Println("error creating collection:", err)
+			return nil
 		}
 
 		// Set as default if requested
 		if setDefault {
 			if err := index.SetDefaultCollection(name); err != nil {
-				return fmt.Errorf("error setting default collection: %w", err)
+				fmt.Println("error setting default collection:", err)
+				return nil
 			}
 		}
 
 		// Save index
 		if err := index.Save(repoConfig.IndexPath); err != nil {
-			return fmt.Errorf("error saving index: %w", err)
+			fmt.Println("error saving index:", err)
+			return nil
 		}
 
 		fmt.Printf("Collection '%s' created successfully.\n", name)
@@ -231,34 +246,40 @@ var collectionRemoveCmd = &cobra.Command{
 		// Find repository root
 		_, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Get the collection first to ensure it exists
 		if _, err := index.GetCollection(name); err != nil {
-			return fmt.Errorf("collection not found: %s", name)
+			fmt.Println("Error: collection not found:", name)
+			return nil
 		}
 
 		// Remove collection
 		if err := index.RemoveCollection(name); err != nil {
-			return fmt.Errorf("error removing collection: %w", err)
+			fmt.Println("error removing collection:", err)
+			return nil
 		}
 
 		// Save index
 		if err := index.Save(repoConfig.IndexPath); err != nil {
-			return fmt.Errorf("error saving index: %w", err)
+			fmt.Println("error saving index:", err)
+			return nil
 		}
 
 		fmt.Printf("Collection '%s' removed successfully.\n", name)
@@ -278,29 +299,34 @@ var collectionSetDefaultCmd = &cobra.Command{
 		// Find repository root
 		_, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Set default collection
 		if err := index.SetDefaultCollection(name); err != nil {
-			return fmt.Errorf("error setting default collection: %w", err)
+			fmt.Println("error setting default collection:", err)
+			return nil
 		}
 
 		// Save index
 		if err := index.Save(repoConfig.IndexPath); err != nil {
-			return fmt.Errorf("error saving index: %w", err)
+			fmt.Println("error saving index:", err)
+			return nil
 		}
 
 		fmt.Printf("Default collection set to '%s'.\n", name)
@@ -320,25 +346,29 @@ var collectionShowCmd = &cobra.Command{
 		// Find repository root
 		_, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Get collection
 		collection, err := index.GetCollection(name)
 		if err != nil {
-			return fmt.Errorf("collection not found: %s", name)
+			fmt.Println("Error: collection not found:", name)
+			return nil
 		}
 
 		// Display collection details
@@ -399,5 +429,11 @@ func init() {
 	collectionCreateCmd.Flags().Bool("default", false, "Set as default collection")
 
 	// Make type flag required
-	collectionCreateCmd.MarkFlagRequired("type")
+	err := collectionCreateCmd.MarkFlagRequired("type")
+	if err != nil {
+		fmt.Println("error marking type flag as required:", err)
+		return
+	}
+
+	rootCmd.AddCommand(collectionCmd)
 }

@@ -14,8 +14,9 @@ var globalConfig *config.Config
 var rootCmd = &cobra.Command{
 	Use:   "hhx",
 	Short: "Headless Hawx - A tool for managing database and storage resources",
-	Long: `Headless Hawx (hhx) is a command-line tool for managing database tables and storage buckets.
-It provides a git-like interface for tracking changes, staging files, and pushing them to remote servers.`,
+	Long: `Headless Hawx (hhx) is a command-line tool for efficiently managing database tables and storage resources.
+It provides an intuitive workflow for tracking changes, staging files, and synchronizing content with remote servers.
+Designed for developers and data professionals who need streamlined control over their data assets.`,
 	Version: "0.1.0",
 }
 
@@ -51,12 +52,4 @@ func findRepoRoot() (string, error) {
 	return "", fmt.Errorf("not in a hhx repository (or any parent directory)")
 }
 
-func init() {
-	// Add all commands
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(statusCmd)
-	rootCmd.AddCommand(stageCmd)
-	rootCmd.AddCommand(unstageCmd)
-	rootCmd.AddCommand(pushCmd)
-	rootCmd.AddCommand(collectionCmd)
-}
+func init() {}

@@ -373,7 +373,6 @@ func (idx *Index) GetAllFiles() []*File {
 }
 
 // ScanWorkingDirectory scans the working directory for changes
-// ScanWorkingDirectory scans the working directory for changes
 func (idx *Index) ScanWorkingDirectory() ([]*File, []*File, []*File, error) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
@@ -390,12 +389,14 @@ func (idx *Index) ScanWorkingDirectory() ([]*File, []*File, []*File, error) {
 	err := filepath.Walk(idx.RepoRoot, func(path string, info os.FileInfo, err error) error {
 		// Handle errors from filepath.Walk
 		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
 			// Skip files that can't be accessed instead of stopping the entire walk
 			return nil
 		}
 
 		// Skip if info is nil
 		if info == nil {
+			fmt.Printf("Warning: FileInfo is nil for path: %s\n", path)
 			return nil
 		}
 
@@ -416,18 +417,21 @@ func (idx *Index) ScanWorkingDirectory() ([]*File, []*File, []*File, error) {
 		// Get relative path
 		relPath, err := filepath.Rel(idx.RepoRoot, path)
 		if err != nil {
+			fmt.Printf("Warning: Failed to get relative path for %s: %v\n", path, err)
 			return nil
 		}
 		relPath = filepath.ToSlash(relPath)
 
 		// Skip any file in the .hhx directory
 		if strings.HasPrefix(relPath, ".hhx/") {
+			fmt.Printf("Warning: Skipping %s because it's a hhx file\n", path)
 			return nil
 		}
 
 		// Calculate hash
 		hash, err := hashFile(path)
 		if err != nil {
+			fmt.Printf("Warning: Failed to get hash for %s: %v\n", path, err)
 			// Skip files that can't be hashed
 			return nil
 		}
@@ -465,8 +469,10 @@ func (idx *Index) ScanWorkingDirectory() ([]*File, []*File, []*File, error) {
 
 		return nil
 	})
-
-	fmt.Printf("err: %v\n", err)
+	if err != nil {
+		fmt.Printf("Warning: %v\n", err)
+		return nil, nil, nil, err
+	}
 
 	// Find deleted files
 	var deletedFiles []*File
