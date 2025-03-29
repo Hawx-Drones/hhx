@@ -19,25 +19,33 @@ var unstageCmd = &cobra.Command{
   hhx unstage .            # Unstage all files`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			return fmt.Errorf("no files specified")
+			fmt.Println("Error: no files specified")
+			err := cmd.Usage()
+			if err != nil {
+				fmt.Println("error displaying usage:", err)
+			}
+			return nil
 		}
 
 		// Find repository root
 		repoRoot, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Process each argument
@@ -47,7 +55,8 @@ var unstageCmd = &cobra.Command{
 			if !filepath.IsAbs(path) {
 				cwd, err := os.Getwd()
 				if err != nil {
-					return fmt.Errorf("error getting current directory: %w", err)
+					fmt.Println("error getting current directory:", err)
+					return nil
 				}
 				path = filepath.Join(cwd, path)
 			}
@@ -58,7 +67,8 @@ var unstageCmd = &cobra.Command{
 				// Try to find the file in the index by relative path
 				relPath, err := filepath.Rel(repoRoot, path)
 				if err != nil {
-					return fmt.Errorf("error getting relative path for %s: %w", arg, err)
+					fmt.Println("error getting relative path for", arg, ":", err)
+					return nil
 				}
 				relPath = filepath.ToSlash(relPath)
 
@@ -67,7 +77,8 @@ var unstageCmd = &cobra.Command{
 				fmt.Printf("Unstaged %s\n", relPath)
 				continue
 			} else if err != nil {
-				return fmt.Errorf("error accessing %s: %w", arg, err)
+				fmt.Println("error accessing", arg, ":", err)
+				return nil
 			}
 
 			if info.IsDir() {
@@ -97,7 +108,8 @@ var unstageCmd = &cobra.Command{
 
 		// Save the index
 		if err := index.Save(repoConfig.IndexPath); err != nil {
-			return fmt.Errorf("error saving index: %w", err)
+			fmt.Println("error saving index:", err)
+			return nil
 		}
 
 		fmt.Println("Files unstaged successfully.")
@@ -106,5 +118,5 @@ var unstageCmd = &cobra.Command{
 }
 
 func init() {
-	// Add flags if necessary
+	rootCmd.AddCommand(unstageCmd)
 }

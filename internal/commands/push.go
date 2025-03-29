@@ -33,19 +33,26 @@ var pushCmd = &cobra.Command{
 			} else if remote == "" {
 				remote = arg
 			} else {
-				return fmt.Errorf("unexpected argument: %s", arg)
+				fmt.Println("Error: unexpected argument:", arg)
+				err := cmd.Usage()
+				if err != nil {
+					fmt.Println("error displaying usage:", err)
+				}
+				return nil
 			}
 		}
 
 		collectionName, _ := cmd.Flags().GetString("collection")
 		repoRoot, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
 		}
 
 		if remote == "" {
@@ -54,24 +61,28 @@ var pushCmd = &cobra.Command{
 
 		remoteURL, ok := repoConfig.Remotes[remote]
 		if !ok {
-			return fmt.Errorf("unknown remote: %s", remote)
+			fmt.Println("Error: unknown remote:", remote)
+			return nil
 		}
 
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		var collection *models.Collection
 		if collectionName != "" {
 			collection, err = index.GetCollection(collectionName)
 			if err != nil {
-				return fmt.Errorf("collection not found: %s", collectionName)
+				fmt.Println("Error: collection not found:", collectionName)
+				return nil
 			}
 		} else {
 			collection, err = index.GetDefaultCollection()
 			if err != nil {
-				return fmt.Errorf("no default collection set. Use --collection to specify or set a default with 'hhx collection set-default'")
+				fmt.Println("Error: no default collection set. Use --collection to specify or set a default with 'hhx collection set-default'")
+				return nil
 			}
 		}
 
@@ -81,13 +92,15 @@ var pushCmd = &cobra.Command{
 			// If pushing all, stage all unstaged files first
 			newFiles, modifiedFiles, _, err := index.ScanWorkingDirectory()
 			if err != nil {
-				return fmt.Errorf("error scanning working directory: %w", err)
+				fmt.Println("error scanning working directory:", err)
+				return nil
 			}
 
 			// Stage all new and modified files
 			for _, file := range append(newFiles, modifiedFiles...) {
 				if err := index.StageFile(file.FullPath(repoRoot)); err != nil {
-					return fmt.Errorf("error staging file %s: %w", file.Path, err)
+					fmt.Println("error staging file", file.Path, ":", err)
+					return nil
 				}
 			}
 		}
@@ -101,13 +114,15 @@ var pushCmd = &cobra.Command{
 
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return fmt.Errorf("error getting home directory: %w", err)
+			fmt.Println("error getting home directory:", err)
+			return nil
 		}
 		configDir := filepath.Join(homeDir, ".hhx")
 		tokenStore := models.NewTokenStore(configDir)
 		client := api.NewClient(remoteURL, tokenStore)
 		if client.AuthToken == "" {
-			return fmt.Errorf("not logged in. Please run 'hhx login' first")
+			fmt.Println("Error: not logged in. Please run 'hhx login' first")
+			return nil
 		}
 
 		// Push files
@@ -117,7 +132,8 @@ var pushCmd = &cobra.Command{
 		// Add collection information to the push request
 		resp, err := client.PushFilesToCollection(repoRoot, filesToPush, collection)
 		if err != nil {
-			return fmt.Errorf("push failed: %w", err)
+			fmt.Println("push failed:", err)
+			return nil
 		}
 
 		// Process response
@@ -134,7 +150,8 @@ var pushCmd = &cobra.Command{
 		}
 
 		if err := index.Save(repoConfig.IndexPath); err != nil {
-			return fmt.Errorf("error saving index: %w", err)
+			fmt.Println("error saving index:", err)
+			return nil
 		}
 
 		// Print summary
@@ -194,4 +211,5 @@ func formatSize(bytes int64) string {
 func init() {
 	pushCmd.Flags().Bool("non-interactive", false, "Do not prompt for login")
 	pushCmd.Flags().String("collection", "", "Collection to push to (defaults to the default collection)")
+	rootCmd.AddCommand(pushCmd)
 }

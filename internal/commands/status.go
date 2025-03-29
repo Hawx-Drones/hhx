@@ -19,25 +19,34 @@ var statusCmd = &cobra.Command{
 		// Find repository root
 		_, err := findRepoRoot()
 		if err != nil {
-			return err
+			fmt.Println("could not find repo root:", err)
+			return nil
 		}
 
 		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
-			return fmt.Errorf("error loading repository config: %w", err)
+			fmt.Println("error loading repository config:", err)
+			return nil
+		}
+
+		if repoConfig.CurrentRemote == "" {
+			fmt.Println("Error: no remote repository configured")
+			return nil
 		}
 
 		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
-			return fmt.Errorf("error loading index: %w", err)
+			fmt.Println("error loading index:", err)
+			return nil
 		}
 
 		// Scan working directory for changes
 		newFiles, modifiedFiles, deletedFiles, err := index.ScanWorkingDirectory()
 		if err != nil {
-			return fmt.Errorf("error scanning working directory: %w", err)
+			fmt.Println("error scanning working directory:", err)
+			return nil
 		}
 
 		// Get staged files
@@ -160,5 +169,5 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
-	// Add flags if necessary
+	rootCmd.AddCommand(statusCmd)
 }
