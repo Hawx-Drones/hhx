@@ -23,24 +23,29 @@ type Client struct {
 
 	// HTTP client with a timeout
 	client *http.Client
+
+	// Token store for managing authentication tokens
+	tokenStore *models.TokenStore
 }
 
 // NewClient creates a new API client
-func NewClient(baseURL, authToken string) *Client {
+func NewClient(baseURL string, tokenStore *models.TokenStore) *Client {
+	token := ""
+	if tokenStore != nil {
+		storedToken, err := tokenStore.GetToken()
+		if err == nil && storedToken != "" {
+			token = storedToken
+		}
+	}
+
 	return &Client{
-		BaseURL:   baseURL,
-		AuthToken: authToken,
+		BaseURL:    baseURL,
+		AuthToken:  token,
+		tokenStore: tokenStore,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
-}
-
-// Auth contains authentication response
-type Auth struct {
-	Token  string `json:"token"`
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
 }
 
 // PushResponse contains the response from the server after pushing files
@@ -72,54 +77,12 @@ type CollectionInfo struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// TODO: This file is generic for now and will be updated in future PRs
-// Login authenticates the user with the server
-func (c *Client) Login(email, password string) (*Auth, error) {
-	reqBody, err := json.Marshal(map[string]string{
-		"email":    email,
-		"password": password,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/auth/login", c.BaseURL), bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("login failed: %s (%d)", string(body), resp.StatusCode)
-	}
-
-	var auth Auth
-	if err := json.NewDecoder(resp.Body).Decode(&auth); err != nil {
-		return nil, err
-	}
-
-	// Update the client's auth token
-	c.AuthToken = auth.Token
-
-	return &auth, nil
-}
-
 // PushFilesToCollection uploads files to a specific collection
 func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, collection *models.Collection) (*PushResponse, error) {
 	var response PushResponse
 
-	// Use a multipart form to upload multiple files
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-
-	// Add metadata about the files
 	filesMeta, err := json.Marshal(files)
 	if err != nil {
 		return nil, err
@@ -129,7 +92,6 @@ func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, co
 		return nil, err
 	}
 
-	// Add collection information
 	collectionInfo := CollectionInfo{
 		Name: collection.Name,
 		Type: string(collection.Type),
@@ -151,7 +113,6 @@ func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, co
 		collectionInfo.Schema = schemaMap
 	}
 
-	// Add collection metadata if it exists
 	if collection.Metadata != nil {
 		collectionInfo.Metadata = collection.Metadata
 	}
@@ -172,15 +133,29 @@ func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, co
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
 
+		// Create a new part for this file
 		part, err := writer.CreateFormFile("file", file.Path)
 		if err != nil {
+			err := f.Close() // Close the file if we can't create the form field
+			if err != nil {
+				return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
+			}
 			return nil, err
 		}
 
+		// Copy file contents to the form
 		if _, err := io.Copy(part, f); err != nil {
+			err := f.Close() // Close the file if copy fails
+			if err != nil {
+				return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
+			}
 			return nil, err
+		}
+
+		// Close the file immediately after use
+		if err := f.Close(); err != nil {
+			return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
 		}
 	}
 
@@ -188,29 +163,29 @@ func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, co
 		return nil, err
 	}
 
-	// Create request
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/files/upload", c.BaseURL), body)
 	if err != nil {
 		return nil, err
 	}
-
-	// Set headers
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.AuthToken))
 
-	// Send request
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("upload failed: %s (%d)", string(responseBody), resp.StatusCode)
 	}
 
-	// Parse response
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
@@ -220,7 +195,6 @@ func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, co
 
 // CreateCollection creates a new collection
 func (c *Client) CreateCollection(collection *models.Collection) error {
-	// Convert collection to CollectionInfo
 	collectionInfo := CollectionInfo{
 		Name: collection.Name,
 		Type: string(collection.Type),
@@ -242,7 +216,6 @@ func (c *Client) CreateCollection(collection *models.Collection) error {
 		collectionInfo.Schema = schemaMap
 	}
 
-	// Add collection metadata if it exists
 	if collection.Metadata != nil {
 		collectionInfo.Metadata = collection.Metadata
 	}
@@ -264,7 +237,12 @@ func (c *Client) CreateCollection(collection *models.Collection) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		responseBody, _ := io.ReadAll(resp.Body)
@@ -287,7 +265,12 @@ func (c *Client) GetStatus() ([]*models.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -315,7 +298,12 @@ func (c *Client) ListCollections() ([]*models.Collection, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -327,7 +315,6 @@ func (c *Client) ListCollections() ([]*models.Collection, error) {
 		return nil, err
 	}
 
-	// Convert CollectionInfo to Collection
 	collections := make([]*models.Collection, 0, len(collectionsInfo))
 	for _, info := range collectionsInfo {
 		collection := &models.Collection{
@@ -351,7 +338,6 @@ func (c *Client) ListCollections() ([]*models.Collection, error) {
 			collection.Schema = &schema
 		}
 
-		// Add metadata if it exists
 		if info.Metadata != nil {
 			collection.Metadata = info.Metadata
 		}

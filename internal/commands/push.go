@@ -24,7 +24,6 @@ var pushCmd = &cobra.Command{
   hhx push origin all                 # Push all files to default collection on specified remote
   hhx push --collection=my-models all # Push all files to specific collection on default remote`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Parse arguments
 		remote := ""
 		pushAll := false
 
@@ -38,22 +37,17 @@ var pushCmd = &cobra.Command{
 			}
 		}
 
-		// Get collection flag
 		collectionName, _ := cmd.Flags().GetString("collection")
-
-		// Find repository root
 		repoRoot, err := findRepoRoot()
 		if err != nil {
 			return err
 		}
 
-		// Load repository config
 		repoConfig, err := config.LoadRepoConfig()
 		if err != nil {
 			return fmt.Errorf("error loading repository config: %w", err)
 		}
 
-		// Determine remote to use
 		if remote == "" {
 			remote = repoConfig.CurrentRemote
 		}
@@ -63,29 +57,24 @@ var pushCmd = &cobra.Command{
 			return fmt.Errorf("unknown remote: %s", remote)
 		}
 
-		// Load index
 		index, err := models.LoadIndex(repoConfig.IndexPath)
 		if err != nil {
 			return fmt.Errorf("error loading index: %w", err)
 		}
 
-		// Determine collection to use
 		var collection *models.Collection
 		if collectionName != "" {
-			// Use specified collection
 			collection, err = index.GetCollection(collectionName)
 			if err != nil {
 				return fmt.Errorf("collection not found: %s", collectionName)
 			}
 		} else {
-			// Use default collection
 			collection, err = index.GetDefaultCollection()
 			if err != nil {
 				return fmt.Errorf("no default collection set. Use --collection to specify or set a default with 'hhx collection set-default'")
 			}
 		}
 
-		// Get files to push
 		var filesToPush []*models.File
 
 		if pushAll {
@@ -110,46 +99,16 @@ var pushCmd = &cobra.Command{
 			return nil
 		}
 
-		// Ensure we have a valid auth token
-		if globalConfig.AuthToken == "" {
-			// Check if we're in interactive mode
-			if !cmd.Flags().Changed("non-interactive") {
-				// Prompt for login
-				var email, password string
-				fmt.Print("Email: ")
-				fmt.Scanln(&email)
-				fmt.Print("Password: ")
-				// In a real implementation, you would use a library to hide the password input
-				fmt.Scanln(&password)
-
-				// Login
-				client := api.NewClient(remoteURL, "")
-				auth, err := client.Login(email, password)
-				if err != nil {
-					return fmt.Errorf("login failed: %w", err)
-				}
-
-				// Save auth token
-				globalConfig.AuthToken = auth.Token
-				globalConfig.UserID = auth.UserID
-				globalConfig.Email = auth.Email
-
-				// Save config
-				homeDir, err := os.UserHomeDir()
-				if err != nil {
-					return fmt.Errorf("error getting home directory: %w", err)
-				}
-				configPath := filepath.Join(homeDir, ".hhx", "config.json")
-				if err := globalConfig.Save(configPath); err != nil {
-					return fmt.Errorf("error saving config: %w", err)
-				}
-			} else {
-				return fmt.Errorf("not logged in (use --non-interactive=false to login)")
-			}
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("error getting home directory: %w", err)
 		}
-
-		// Create API client
-		client := api.NewClient(remoteURL, globalConfig.AuthToken)
+		configDir := filepath.Join(homeDir, ".hhx")
+		tokenStore := models.NewTokenStore(configDir)
+		client := api.NewClient(remoteURL, tokenStore)
+		if client.AuthToken == "" {
+			return fmt.Errorf("not logged in. Please run 'hhx login' first")
+		}
 
 		// Push files
 		fmt.Printf("Pushing %d files to collection '%s' on '%s'...\n", len(filesToPush), collection.Name, remote)
@@ -174,7 +133,6 @@ var pushCmd = &cobra.Command{
 			index.MarkSynced(uploaded.Path, uploaded.RemoteURL)
 		}
 
-		// Save index
 		if err := index.Save(repoConfig.IndexPath); err != nil {
 			return fmt.Errorf("error saving index: %w", err)
 		}
