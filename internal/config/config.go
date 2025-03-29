@@ -65,8 +65,7 @@ func Load(path string) (*Config, error) {
 	// If config file doesn't exist, return default config
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return &Config{
-			// TODO: Move this to api server
-			ServerURL: "http://localhost:8080", // Default local server URL
+			ServerURL: "https://api.headlesshawx.io",
 		}, nil
 	}
 
