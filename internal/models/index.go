@@ -122,23 +122,39 @@ func (idx *Index) AddCollection(collection *Collection) error {
 	return nil
 }
 
-// UpdateCollection updates an existing collection
+// UpdateCollection updates an existing collection in the index
 func (idx *Index) UpdateCollection(collection *Collection) error {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-
-	// Validate the collection
-	if err := collection.Validate(); err != nil {
-		return err
+	if collection == nil {
+		return fmt.Errorf("collection cannot be nil")
 	}
 
-	// Check if the collection exists
-	if _, exists := idx.Collections[collection.Name]; !exists {
-		return ErrCollectionNotFound
+	if collection.Name == "" {
+		return fmt.Errorf("collection name cannot be empty")
 	}
 
-	idx.Collections[collection.Name] = collection
-	return nil
+	// Find the collection in the index
+	for i, c := range idx.Collections {
+		if c.Name == collection.Name {
+			// Update the collection
+			idx.Collections[i] = collection
+			return nil
+		}
+	}
+
+	return fmt.Errorf("collection not found: %s", collection.Name)
+}
+
+// GetFilesByCollection returns all files in a specific collection
+func (idx *Index) GetFilesByCollection(collectionName string) []*File {
+	var files []*File
+
+	for _, file := range idx.Files {
+		if file.Collection == collectionName {
+			files = append(files, file)
+		}
+	}
+
+	return files
 }
 
 // RemoveCollection removes a collection from the index

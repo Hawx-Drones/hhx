@@ -134,6 +134,12 @@ type RepoConfig struct {
 
 	// Index file path
 	IndexPath string `json:"index_path"`
+
+	// Project ID
+	ProjectID string `json:"project_id,omitempty"`
+
+	// Project name
+	ProjectName string `json:"project_name,omitempty"`
 }
 
 // LoadRepoConfig loads the repository configuration

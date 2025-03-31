@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hhx/internal/config"
 	"hhx/internal/models"
+	"hhx/internal/util"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -220,7 +221,7 @@ func renderFiles(files []*models.File, width int) string {
 		for _, file := range stagedFiles {
 			content += fmt.Sprintf("  %s (%s)\n",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(file.Path),
-				formatSize(file.Size),
+				util.FormatSize(file.Size),
 			)
 		}
 		sections = append(sections, content)
@@ -237,7 +238,7 @@ func renderFiles(files []*models.File, width int) string {
 		for _, file := range modifiedFiles {
 			content += fmt.Sprintf("  %s (%s)\n",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Render(file.Path),
-				formatSize(file.Size),
+				util.FormatSize(file.Size),
 			)
 		}
 		sections = append(sections, content)
@@ -254,7 +255,7 @@ func renderFiles(files []*models.File, width int) string {
 		for _, file := range untrackedFiles {
 			content += fmt.Sprintf("  %s (%s)\n",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render(file.Path),
-				formatSize(file.Size),
+				util.FormatSize(file.Size),
 			)
 		}
 		sections = append(sections, content)
@@ -271,29 +272,11 @@ func renderFiles(files []*models.File, width int) string {
 		for _, file := range syncedFiles {
 			content += fmt.Sprintf("  %s (%s)\n",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Render(file.Path),
-				formatSize(file.Size),
+				util.FormatSize(file.Size),
 			)
 		}
 		sections = append(sections, content)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
-}
-
-// formatSize formats a file size in bytes to a human-readable string
-func formatSize(size int64) string {
-	units := []string{"B", "KB", "MB", "GB", "TB"}
-	unitIndex := 0
-	floatSize := float64(size)
-
-	for floatSize >= 1024 && unitIndex < len(units)-1 {
-		floatSize /= 1024
-		unitIndex++
-	}
-
-	if unitIndex == 0 {
-		return fmt.Sprintf("%d %s", size, units[unitIndex])
-	}
-
-	return fmt.Sprintf("%.2f %s", floatSize, units[unitIndex])
 }

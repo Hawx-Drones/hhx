@@ -27,6 +27,7 @@ type File struct {
 	LastModified time.Time  `json:"last_modified"`        // Last modification time
 	Status       FileStatus `json:"status"`               // File status
 	RemoteURL    string     `json:"remote_url,omitempty"` // URL of the file on the server
+	Collection   string     `json:"collection,omitempty"` // Collection name
 }
 
 // NewFileFromPath creates a new File instance from the given path

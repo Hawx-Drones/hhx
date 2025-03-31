@@ -23,7 +23,7 @@ var collectionCmd = &cobra.Command{
 var collectionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all collections",
-	Long:  `List all collections in the repository.`,
+	Long:  `List all collections in the repository, with details about their type and structure.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Find repository root
 		_, err := findRepoRoot()
@@ -52,18 +52,33 @@ var collectionListCmd = &cobra.Command{
 		// Display collections
 		if len(collections) == 0 {
 			fmt.Println("No collections found.")
-			fmt.Println("Use 'hhx collection create' to create a new collection.")
+			fmt.Println("Use 'hhx collection create <name> --type=bucket' to create a new collection.")
 			return nil
 		}
 
-		fmt.Println("Collections:")
-		fmt.Println("-------------")
+		fmt.Println("Collections in repository:")
+		fmt.Println("==========================")
 
+		// Active project
+		if repoConfig.ProjectName != "" {
+			fmt.Printf("Project: %s\n", repoConfig.ProjectName)
+		} else {
+			fmt.Println("No project linked. Use 'hhx project link <project-name>' to link to a project.")
+		}
+		fmt.Println()
+
+		// Show collections with push example
 		for _, collection := range collections {
 			if index.DefaultCollection == collection.Name {
-				color.Green("* %s (%s) - %s [DEFAULT]\n", collection.Name, collection.Type, collection.Path)
+				color.Green("* %s (%s) [DEFAULT]\n", collection.Name, collection.Type)
+				fmt.Printf("  Push Example: hhx push --collection=%s\n", collection.Name)
 			} else {
-				fmt.Printf("  %s (%s) - %s\n", collection.Name, collection.Type, collection.Path)
+				fmt.Printf("  %s (%s)\n", collection.Name, collection.Type)
+				fmt.Printf("  Push Example: hhx push --collection=%s\n", collection.Name)
+			}
+
+			if collection.Path != "" && collection.Path != collection.Name {
+				fmt.Printf("  Path: %s\n", collection.Path)
 			}
 
 			// Print schema for tables
@@ -82,6 +97,28 @@ var collectionListCmd = &cobra.Command{
 					} else {
 						fmt.Printf("    - %s (%s)\n", column.Name, column.Type)
 					}
+				}
+			}
+
+			// Print any files that have already been pushed to this collection
+			// This helps users see what's already in each collection
+			files := index.GetFilesByCollection(collection.Name)
+			if len(files) > 0 {
+				fmt.Println("  Files in collection:")
+				count := 0
+				for _, file := range files {
+					if count < 5 { // Only show up to 5 files to avoid overwhelming output
+						if file.RemoteURL != "" {
+							fmt.Printf("    - %s (synced)\n", file.Path)
+						} else {
+							fmt.Printf("    - %s (not synced)\n", file.Path)
+						}
+					}
+					count++
+				}
+
+				if count > 5 {
+					fmt.Printf("    ... and %d more files\n", count-5)
 				}
 			}
 

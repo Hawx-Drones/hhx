@@ -5,6 +5,7 @@ import (
 	"hhx/internal/api"
 	"hhx/internal/config"
 	"hhx/internal/models"
+	"hhx/internal/util"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,6 +21,7 @@ var pushCmd = &cobra.Command{
 	Example: `  hhx push                            # Push staged files to default collection on default remote
   hhx push origin                     # Push staged files to default collection on specified remote
   hhx push --collection=my-models     # Push staged files to specific collection on default remote
+  hhx push --project=proj-name        # Push to a specific project (overrides the linked project)
   hhx push all                        # Push all files to default collection on default remote
   hhx push origin all                 # Push all files to default collection on specified remote
   hhx push --collection=my-models all # Push all files to specific collection on default remote`,
@@ -43,6 +45,8 @@ var pushCmd = &cobra.Command{
 		}
 
 		collectionName, _ := cmd.Flags().GetString("collection")
+		projectName, _ := cmd.Flags().GetString("project")
+
 		repoRoot, err := findRepoRoot()
 		if err != nil {
 			fmt.Println("could not find repo root:", err)
@@ -62,6 +66,17 @@ var pushCmd = &cobra.Command{
 		remoteURL, ok := repoConfig.Remotes[remote]
 		if !ok {
 			fmt.Println("Error: unknown remote:", remote)
+			return nil
+		}
+
+		// Determine which project to use
+		activeProject := repoConfig.ProjectName
+		if projectName != "" {
+			activeProject = projectName
+		}
+
+		if activeProject == "" {
+			fmt.Println("Error: no project specified or linked. Use --project to specify a project or link a project with 'hhx project link'")
 			return nil
 		}
 
@@ -125,12 +140,13 @@ var pushCmd = &cobra.Command{
 			return nil
 		}
 
-		// Push files
-		fmt.Printf("Pushing %d files to collection '%s' on '%s'...\n", len(filesToPush), collection.Name, remote)
+		// Push files to the specific project and collection
+		fmt.Printf("Pushing %d files to project '%s', collection '%s' on '%s'...\n",
+			len(filesToPush), activeProject, collection.Name, remote)
 		startTime := time.Now()
 
-		// Add collection information to the push request
-		resp, err := client.PushFilesToCollection(repoRoot, filesToPush, collection)
+		// Add project and collection information to the push request
+		resp, err := client.PushFilesToProjectCollection(repoRoot, filesToPush, activeProject, collection)
 		if err != nil {
 			fmt.Println("push failed:", err)
 			return nil
@@ -161,9 +177,10 @@ var pushCmd = &cobra.Command{
 			fileSize += file.Size
 		}
 
-		fmt.Printf("\nUploaded %d files (%s) to collection '%s' in %s\n",
+		fmt.Printf("\nUploaded %d files (%s) to project '%s', collection '%s' in %s\n",
 			len(resp.UploadedFiles),
-			formatSize(fileSize),
+			util.FormatSize(fileSize),
+			activeProject,
 			collection.Name,
 			duration,
 		)
@@ -172,44 +189,10 @@ var pushCmd = &cobra.Command{
 	},
 }
 
-// formatSize converts bytes into a human-readable string with appropriate unit suffix
-func formatSize(bytes int64) string {
-	const (
-		_        = iota // ignore first value by assigning to blank identifier
-		KB int64 = 1 << (10 * iota)
-		MB
-		GB
-		TB
-	)
-
-	unit := ""
-	value := float64(bytes)
-
-	switch {
-	case bytes >= TB:
-		unit = "TB"
-		value = float64(bytes) / float64(TB)
-	case bytes >= GB:
-		unit = "GB"
-		value = float64(bytes) / float64(GB)
-	case bytes >= MB:
-		unit = "MB"
-		value = float64(bytes) / float64(MB)
-	case bytes >= KB:
-		unit = "KB"
-		value = float64(bytes) / float64(KB)
-	default:
-		unit = "bytes"
-	}
-
-	if unit == "bytes" {
-		return fmt.Sprintf("%d %s", bytes, unit)
-	}
-	return fmt.Sprintf("%.2f %s", value, unit)
-}
-
 func init() {
+	rootCmd.AddCommand(pushCmd)
+
 	pushCmd.Flags().Bool("non-interactive", false, "Do not prompt for login")
 	pushCmd.Flags().String("collection", "", "Collection to push to (defaults to the default collection)")
-	rootCmd.AddCommand(pushCmd)
+	pushCmd.Flags().String("project", "", "Project to push to (overrides the linked project)")
 }
