@@ -8,18 +8,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // ListBuckets retrieves all storage buckets
-func (c *Client) ListBuckets() ([]models.Bucket, error) {
+func (c *Client) ListBuckets(projectID string) ([]models.Bucket, error) {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return nil, fmt.Errorf("error getting token: %w", err)
 	}
 
-	bucketsUrl := fmt.Sprintf("%s/%s/storage/buckets", c.BaseURL, API_VERSION)
+	listUrl := fmt.Sprintf("%s/%s/projects/%s/storage/buckets", c.BaseURL, API_VERSION, projectID)
 
-	req, err := http.NewRequest("GET", bucketsUrl, nil)
+	req, err := http.NewRequest("GET", listUrl, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -55,30 +56,35 @@ func (c *Client) ListBuckets() ([]models.Bucket, error) {
 }
 
 // CreateBucket creates a new storage bucket
-func (c *Client) CreateBucket(name string, public bool, fileSizeLimit int64) (*models.Bucket, error) {
+func (c *Client) CreateBucket(projectID string, name string, public bool, fileSizeLimit int64, allowedFileTypes string) (*models.Bucket, error) {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return nil, fmt.Errorf("error getting token: %w", err)
 	}
 
-	bucketsUrl := fmt.Sprintf("%s/%s/storage/buckets", c.BaseURL, API_VERSION)
+	createUrl := fmt.Sprintf("%s/%s/projects/%s/storage/buckets", c.BaseURL, API_VERSION, projectID)
 
-	request := struct {
-		Name          string `json:"name"`
-		Public        bool   `json:"public"`
-		FileSizeLimit int64  `json:"fileSizeLimit,omitempty"`
+	body := struct {
+		Name             string   `json:"name"`
+		Public           bool     `json:"public"`
+		FileSizeLimit    int64    `json:"fileSizeLimit,omitempty"`
+		AllowedFileTypes []string `json:"allowedFileTypes,omitempty"`
 	}{
 		Name:          name,
 		Public:        public,
 		FileSizeLimit: fileSizeLimit,
 	}
 
-	jsonData, err := json.Marshal(request)
+	if allowedFileTypes != "" {
+		body.AllowedFileTypes = strings.Split(allowedFileTypes, ",")
+	}
+
+	jsonData, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", bucketsUrl, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", createUrl, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -115,14 +121,14 @@ func (c *Client) CreateBucket(name string, public bool, fileSizeLimit int64) (*m
 }
 
 // GetBucket retrieves details about a specific bucket
-func (c *Client) GetBucket(name string) (*models.Bucket, error) {
+func (c *Client) GetBucket(projectID string, name string) (*models.Bucket, error) {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return nil, fmt.Errorf("error getting token: %w", err)
 	}
 
 	encodedName := url.PathEscape(name)
-	bucketsUrl := fmt.Sprintf("%s/%s/storage/buckets/%s", c.BaseURL, API_VERSION, encodedName)
+	bucketsUrl := fmt.Sprintf("%s/%s/projects/%s/storage/buckets/%s", c.BaseURL, API_VERSION, projectID, encodedName)
 
 	req, err := http.NewRequest("GET", bucketsUrl, nil)
 	if err != nil {
@@ -160,21 +166,21 @@ func (c *Client) GetBucket(name string) (*models.Bucket, error) {
 }
 
 // UpdateBucket updates a bucket's settings
-func (c *Client) UpdateBucket(name string, updates interface{}) error {
+func (c *Client) UpdateBucket(projectID string, name string, updates interface{}) error {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return fmt.Errorf("error getting token: %w", err)
 	}
 
 	encodedName := url.PathEscape(name)
-	url := fmt.Sprintf("%s/%s/storage/buckets/%s", c.BaseURL, API_VERSION, encodedName)
+	updateUrl := fmt.Sprintf("%s/%s/projects/%s/storage/buckets/%s", c.BaseURL, API_VERSION, projectID, encodedName)
 
 	jsonData, err := json.Marshal(updates)
 	if err != nil {
 		return fmt.Errorf("error marshalling request: %w", err)
 	}
 
-	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("PATCH", updateUrl, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -203,16 +209,16 @@ func (c *Client) UpdateBucket(name string, updates interface{}) error {
 }
 
 // DeleteBucket deletes a storage bucket
-func (c *Client) DeleteBucket(name string) error {
+func (c *Client) DeleteBucket(projectID string, name string) error {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return fmt.Errorf("error getting token: %w", err)
 	}
 
 	encodedName := url.PathEscape(name)
-	url := fmt.Sprintf("%s/%s/storage/buckets/%s", c.BaseURL, API_VERSION, encodedName)
+	deleteUrl := fmt.Sprintf("%s/%s/projects/%s/storage/buckets/%s", c.BaseURL, API_VERSION, projectID, encodedName)
 
-	req, err := http.NewRequest("DELETE", url, nil)
+	req, err := http.NewRequest("DELETE", deleteUrl, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -240,16 +246,16 @@ func (c *Client) DeleteBucket(name string) error {
 }
 
 // EmptyBucket removes all files from a bucket
-func (c *Client) EmptyBucket(name string) error {
+func (c *Client) EmptyBucket(projectID string, name string) error {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return fmt.Errorf("error getting token: %w", err)
 	}
 
 	encodedName := url.PathEscape(name)
-	url := fmt.Sprintf("%s/%s/storage/buckets/%s/empty", c.BaseURL, API_VERSION, encodedName)
+	emptyUrl := fmt.Sprintf("%s/%s/projects/%s/storage/buckets/%s/empty", c.BaseURL, API_VERSION, projectID, encodedName)
 
-	req, err := http.NewRequest("POST", url, nil)
+	req, err := http.NewRequest("POST", emptyUrl, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}

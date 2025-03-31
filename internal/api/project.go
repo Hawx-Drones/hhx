@@ -108,6 +108,49 @@ func (c *Client) GetProject(projectID string) (*models.Project, error) {
 	return &response.Project, nil
 }
 
+// GetProjectByName retrieves a project by name
+func (c *Client) GetProjectByName(projectName string) (*models.Project, error) {
+	token, err := c.tokenStore.GetToken()
+	if err != nil {
+		return nil, fmt.Errorf("error getting token: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/%s/projects/name/%s", c.BaseURL, API_VERSION, projectName)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Warning: Failed to close response body: %v\n", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get project with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Project models.Project `json:"project"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	return &response.Project, nil
+}
+
 // ListProjects retrieves all projects for the current user
 func (c *Client) ListProjects() ([]models.Project, error) {
 	token, err := c.tokenStore.GetToken()

@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"hhx/internal/models"
 	"io"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -48,12 +45,6 @@ func NewClient(baseURL string, tokenStore *models.TokenStore) *Client {
 	}
 }
 
-// PushResponse contains the response from the server after pushing files
-type PushResponse struct {
-	UploadedFiles []UploadedFile `json:"uploaded_files"`
-	Errors        []UploadError  `json:"errors,omitempty"`
-}
-
 // UploadedFile contains information about an uploaded file
 type UploadedFile struct {
 	Path      string `json:"path"`
@@ -75,122 +66,6 @@ type CollectionInfo struct {
 	Path     string                 `json:"path"`
 	Schema   map[string]interface{} `json:"schema,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// PushFilesToCollection uploads files to a specific collection
-func (c *Client) PushFilesToCollection(repoRoot string, files []*models.File, collection *models.Collection) (*PushResponse, error) {
-	var response PushResponse
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	filesMeta, err := json.Marshal(files)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := writer.WriteField("files_meta", string(filesMeta)); err != nil {
-		return nil, err
-	}
-
-	collectionInfo := CollectionInfo{
-		Name: collection.Name,
-		Type: string(collection.Type),
-		Path: collection.Path,
-	}
-
-	// Convert schema to a generic map if it exists
-	if collection.Schema != nil {
-		schemaBytes, err := json.Marshal(collection.Schema)
-		if err != nil {
-			return nil, err
-		}
-
-		var schemaMap map[string]interface{}
-		if err := json.Unmarshal(schemaBytes, &schemaMap); err != nil {
-			return nil, err
-		}
-
-		collectionInfo.Schema = schemaMap
-	}
-
-	if collection.Metadata != nil {
-		collectionInfo.Metadata = collection.Metadata
-	}
-
-	collectionJSON, err := json.Marshal(collectionInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := writer.WriteField("collection", string(collectionJSON)); err != nil {
-		return nil, err
-	}
-
-	// Add each file
-	for _, file := range files {
-		filePath := filepath.Join(repoRoot, filepath.FromSlash(file.Path))
-		f, err := os.Open(filePath)
-		if err != nil {
-			return nil, err
-		}
-
-		// Create a new part for this file
-		part, err := writer.CreateFormFile("file", file.Path)
-		if err != nil {
-			err := f.Close() // Close the file if we can't create the form field
-			if err != nil {
-				return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
-			}
-			return nil, err
-		}
-
-		// Copy file contents to the form
-		if _, err := io.Copy(part, f); err != nil {
-			err := f.Close() // Close the file if copy fails
-			if err != nil {
-				return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
-			}
-			return nil, err
-		}
-
-		// Close the file immediately after use
-		if err := f.Close(); err != nil {
-			return nil, fmt.Errorf("error closing file %s: %w", filePath, err)
-		}
-	}
-
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/files/upload", c.BaseURL), body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.AuthToken))
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Printf("Warning: Failed to close response body: %v\n", err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		responseBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("upload failed: %s (%d)", string(responseBody), resp.StatusCode)
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, err
-	}
-
-	return &response, nil
 }
 
 // CreateCollection creates a new collection
