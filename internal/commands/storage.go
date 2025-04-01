@@ -69,7 +69,6 @@ var storageListCmd = &cobra.Command{
 	},
 }
 
-// storageCreateCmd
 var storageCreateCmd = &cobra.Command{
 	Use:   "create [bucketName]",
 	Short: "Create a new storage bucket in a project",
@@ -80,7 +79,7 @@ var storageCreateCmd = &cobra.Command{
 
 		public, _ := cmd.Flags().GetBool("public")
 		fileSizeLimit, _ := cmd.Flags().GetInt64("file-size-limit")
-		allowedFileTypes, _ := cmd.Flags().GetString("allowed-file-types")
+		allowedMimeTypes, _ := cmd.Flags().GetString("allowed-mime-types")
 
 		projectID, err := resolveProjectID(cmd)
 		if err != nil {
@@ -109,9 +108,9 @@ var storageCreateCmd = &cobra.Command{
 			return nil
 		}
 
-		// 3) Create client and call new CreateBucket(projectID, ...)
+		// Create client and call CreateBucket
 		client := api.NewClient(globalConfig.ServerURL, tokenStore)
-		bucket, err := client.CreateBucket(projectID, bucketName, public, fileSizeLimit, allowedFileTypes)
+		bucket, err := client.CreateBucket(projectID, bucketName, public, fileSizeLimit, allowedMimeTypes)
 		if err != nil {
 			fmt.Println("Error creating bucket:", err)
 			return nil
@@ -122,7 +121,6 @@ var storageCreateCmd = &cobra.Command{
 	},
 }
 
-// storageGetCmd
 var storageGetCmd = &cobra.Command{
 	Use:   "get [bucketName]",
 	Short: "Get details of a bucket in a project",
@@ -177,7 +175,6 @@ var storageGetCmd = &cobra.Command{
 	},
 }
 
-// storageUpdateCmd
 var storageUpdateCmd = &cobra.Command{
 	Use:   "update [bucketName]",
 	Short: "Update settings for a bucket in a project",
@@ -185,10 +182,10 @@ var storageUpdateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		bucketName := args[0]
 
-		// If neither public nor file-size-limit nor allowed-file-types is changed, exit
+		// If neither public nor file-size-limit nor allowed-mime-types is changed, exit
 		hasUpdate := cmd.Flags().Changed("public") ||
 			cmd.Flags().Changed("file-size-limit") ||
-			cmd.Flags().Changed("allowed-file-types")
+			cmd.Flags().Changed("allowed-mime-types")
 		if !hasUpdate {
 			fmt.Println("Error: at least one flag must be specified to update.")
 			return nil
@@ -224,7 +221,7 @@ var storageUpdateCmd = &cobra.Command{
 		// Build the patch
 		public, _ := cmd.Flags().GetBool("public")
 		fileSizeLimit, _ := cmd.Flags().GetInt64("file-size-limit")
-		allowedFileTypes, _ := cmd.Flags().GetString("allowed-file-types")
+		allowedMimeTypes, _ := cmd.Flags().GetString("allowed-mime-types")
 
 		updates := make(map[string]interface{})
 		if cmd.Flags().Changed("public") {
@@ -233,8 +230,8 @@ var storageUpdateCmd = &cobra.Command{
 		if cmd.Flags().Changed("file-size-limit") {
 			updates["fileSizeLimit"] = fileSizeLimit
 		}
-		if cmd.Flags().Changed("allowed-file-types") {
-			updates["allowedFileTypes"] = strings.Split(allowedFileTypes, ",")
+		if cmd.Flags().Changed("allowed-mime-types") {
+			updates["allowedMimeTypes"] = strings.Split(allowedMimeTypes, ",")
 		}
 
 		client := api.NewClient(globalConfig.ServerURL, tokenStore)
@@ -248,7 +245,6 @@ var storageUpdateCmd = &cobra.Command{
 	},
 }
 
-// storageDeleteCmd
 var storageDeleteCmd = &cobra.Command{
 	Use:   "delete [bucketName]",
 	Short: "Delete a bucket from a project",
@@ -310,7 +306,6 @@ var storageDeleteCmd = &cobra.Command{
 	},
 }
 
-// storageEmptyCmd
 var storageEmptyCmd = &cobra.Command{
 	Use:   "empty [bucketName]",
 	Short: "Remove all files from a bucket (but keep the bucket)",
@@ -372,11 +367,9 @@ var storageEmptyCmd = &cobra.Command{
 	},
 }
 
-// init
 func init() {
 	rootCmd.AddCommand(storageCmd)
 
-	// Register subcommands
 	storageCmd.AddCommand(storageListCmd)
 	storageCmd.AddCommand(storageCreateCmd)
 	storageCmd.AddCommand(storageGetCmd)
@@ -389,14 +382,13 @@ func init() {
 		sc.Flags().String("project", "", "Project name or ID (overrides linked project)")
 	}
 
-	// Additional flags
 	storageCreateCmd.Flags().Bool("public", false, "Whether the bucket should be publicly accessible")
 	storageCreateCmd.Flags().Int64("file-size-limit", 0, "Maximum file size in bytes (0 for no limit)")
-	storageCreateCmd.Flags().String("allowed-file-types", "", "Comma-separated list of allowed file extensions")
+	storageCreateCmd.Flags().String("allowed-mime-types", "", "Comma-separated list of allowed MIME types (e.g., image/jpeg,image/png,application/pdf)")
 
 	storageUpdateCmd.Flags().Bool("public", false, "Whether the bucket should be publicly accessible")
 	storageUpdateCmd.Flags().Int64("file-size-limit", 0, "Maximum file size in bytes (0 for no limit)")
-	storageUpdateCmd.Flags().String("allowed-file-types", "", "Comma-separated list of allowed file extensions")
+	storageUpdateCmd.Flags().String("allowed-mime-types", "", "Comma-separated list of allowed MIME types (e.g., image/jpeg,image/png,application/pdf)")
 
 	storageDeleteCmd.Flags().Bool("force", false, "Skip confirmation prompt")
 	storageEmptyCmd.Flags().Bool("force", false, "Skip confirmation prompt")
@@ -404,7 +396,7 @@ func init() {
 
 // ResolveProjectID resolves the project ID from command line flags or local config
 func resolveProjectID(cmd *cobra.Command) (string, error) {
-	// 1) Check if user passed --project explicitly
+	// Check if user passed --project explicitly
 	projectFlag, _ := cmd.Flags().GetString("project")
 	if projectFlag != "" {
 		// Could be a direct ID or a project name
@@ -417,7 +409,7 @@ func resolveProjectID(cmd *cobra.Command) (string, error) {
 		return lookupProjectIDByName(projectFlag)
 	}
 
-	// 2) If no flag, check local repo config
+	// If no flag, check local repo config
 	repoConfig, err := config.LoadRepoConfig()
 	if err != nil {
 		return "", err
@@ -430,7 +422,6 @@ func resolveProjectID(cmd *cobra.Command) (string, error) {
 		return lookupProjectIDByName(repoConfig.ProjectName)
 	}
 
-	// If nothing found, return blank
 	return "", nil
 }
 
