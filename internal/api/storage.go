@@ -56,7 +56,7 @@ func (c *Client) ListBuckets(projectID string) ([]models.Bucket, error) {
 }
 
 // CreateBucket creates a new storage bucket
-func (c *Client) CreateBucket(projectID string, name string, public bool, fileSizeLimit int64, allowedFileTypes string) (*models.Bucket, error) {
+func (c *Client) CreateBucket(projectID string, name string, public bool, fileSizeLimit int64, allowedMimeTypes string) (*models.Bucket, error) {
 	token, err := c.tokenStore.GetToken()
 	if err != nil {
 		return nil, fmt.Errorf("error getting token: %w", err)
@@ -67,16 +67,16 @@ func (c *Client) CreateBucket(projectID string, name string, public bool, fileSi
 	body := struct {
 		Name             string   `json:"name"`
 		Public           bool     `json:"public"`
-		FileSizeLimit    int64    `json:"fileSizeLimit,omitempty"`
-		AllowedFileTypes []string `json:"allowedFileTypes,omitempty"`
+		FileSizeLimit    int64    `json:"file_size_limit,omitempty"`
+		AllowedMimeTypes []string `json:"allowed_mime_types,omitempty"`
 	}{
 		Name:          name,
 		Public:        public,
 		FileSizeLimit: fileSizeLimit,
 	}
 
-	if allowedFileTypes != "" {
-		body.AllowedFileTypes = strings.Split(allowedFileTypes, ",")
+	if allowedMimeTypes != "" {
+		body.AllowedMimeTypes = strings.Split(allowedMimeTypes, ",")
 	}
 
 	jsonData, err := json.Marshal(body)
