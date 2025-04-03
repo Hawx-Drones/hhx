@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // PushResponse represents the response from a push operation
@@ -146,61 +147,54 @@ func (c *Client) PushFilesToProjectCollection(repoRoot string, files []*models.F
 
 	// Add each file to the form
 	for _, file := range files {
-		// Create a form file for each file to upload
 		fullPath := filepath.Join(repoRoot, file.Path)
 		f, err := os.Open(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("error opening file %s: %w", file.Path, err)
 		}
 
-		// Get file statistics for content length
 		stat, err := f.Stat()
 		if err != nil {
 			err := f.Close()
 			if err != nil {
-				fmt.Println("error closing file:", err)
-				return nil, err
-			}
+				return nil, fmt.Errorf("Warning: Failed to close file handle: %v\n", err)
+			} // Close file handle on error
 			return nil, fmt.Errorf("error getting file stats for %s: %w", file.Path, err)
 		}
 
-		// Create a form file field with the file name
+		contentType := getContentTypeFromFilename(file.Path)
 		fileField, err := writer.CreateFormFile("files", file.Path)
 		if err != nil {
 			err := f.Close()
 			if err != nil {
-				fmt.Println("error closing file:", err)
-				return nil, err
-			}
+				return nil, fmt.Errorf("Warning: Failed to close file handle: %v\n", err)
+			} // Close file handle on error
 			return nil, fmt.Errorf("error creating form file: %w", err)
 		}
 
-		// Copy the file data to the form
 		if _, err := io.Copy(fileField, f); err != nil {
 			err := f.Close()
 			if err != nil {
-				fmt.Println("error closing file:", err)
-				return nil, err
-			}
+				return nil, fmt.Errorf("Warning: Failed to close file handle: %v\n", err)
+			} // Close file handle on error
 			return nil, fmt.Errorf("error copying file data: %w", err)
 		}
-		err = f.Close()
-		if err != nil {
-			fmt.Println("error closing file:", err)
-			return nil, err
+
+		if err := f.Close(); err != nil {
+			return nil, fmt.Errorf("error closing file: %w", err)
 		}
 
-		// Add file metadata
 		fileMetaField, err := writer.CreateFormField(fmt.Sprintf("file_meta_%s", file.Path))
 		if err != nil {
 			return nil, fmt.Errorf("error creating file metadata field: %w", err)
 		}
 
 		fileMeta := map[string]interface{}{
-			"path":       file.Path,
-			"size":       stat.Size(),
-			"hash":       file.Hash,
-			"remote_url": file.RemoteURL,
+			"path":         file.Path,
+			"size":         stat.Size(),
+			"hash":         file.Hash,
+			"remote_url":   file.RemoteURL,
+			"content_type": contentType,
 		}
 
 		fileMetaBytes, err := json.Marshal(fileMeta)
@@ -213,22 +207,18 @@ func (c *Client) PushFilesToProjectCollection(repoRoot string, files []*models.F
 		}
 	}
 
-	// Close the multipart writer
 	if err := writer.Close(); err != nil {
 		return nil, fmt.Errorf("error closing multipart writer: %w", err)
 	}
 
-	// Create the request
 	req, err = http.NewRequest("POST", url, &requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
-	// Set headers
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	// Send the request
 	client = &http.Client{}
 	resp, err = client.Do(req)
 	if err != nil {
@@ -241,17 +231,42 @@ func (c *Client) PushFilesToProjectCollection(repoRoot string, files []*models.F
 		}
 	}(resp.Body)
 
-	// Handle response
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("push failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	// Parse response
 	var pushResponse PushResponse
 	if err := json.NewDecoder(resp.Body).Decode(&pushResponse); err != nil {
 		return nil, fmt.Errorf("error decoding response: %w", err)
 	}
 
 	return &pushResponse, nil
+}
+
+func getContentTypeFromFilename(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".pdf":
+		return "application/pdf"
+	case ".txt":
+		return "text/plain"
+	case ".html":
+		return "text/html"
+	case ".css":
+		return "text/css"
+	case ".js":
+		return "application/javascript"
+	case ".json":
+		return "application/json"
+	// add more content types as needed
+	default:
+		return "application/octet-stream"
+	}
 }
