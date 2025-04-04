@@ -58,6 +58,13 @@ type Column struct {
 	DefaultValue interface{} `json:"default_value,omitempty"`
 }
 
+// CollectionsResponse represents the response when listing collections
+type CollectionsResponse struct {
+	Collections []struct {
+		Name string `json:"name"`
+	} `json:"collections"`
+}
+
 // Validate validates the collection
 func (c *Collection) Validate() error {
 	if c.Name == "" {
